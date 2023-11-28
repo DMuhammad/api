@@ -1,9 +1,8 @@
 import { Router } from "express";
+import weddingRoutes from "./weddingRoutes.js";
 
 const routes = Router();
 
-routes.get("/wedding", (req, res) => {
-  res.send("Hello World");
-});
+routes.use("/wedding", weddingRoutes);
 
 export default routes;
