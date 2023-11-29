@@ -3,6 +3,7 @@ import Comment from "../models/Comment.js";
 import Like from "../models/Like.js";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale/index.js";
+import { fdtn } from "../utils/formatedDate.js";
 
 const addComment = (req, res) => {
   const { nama, hadir, komentar } = req.body;
@@ -50,10 +51,7 @@ const getChildCommentsRecursive = async (parent_id) => {
       }).countDocuments();
       childComment.like.love = count;
 
-      childComment.created_at = formatDistanceToNow(
-        new Date(Number(childComment.created_at)),
-        { addSuffix: true, includeSeconds: true, locale: id }
-      );
+      childComment.created_at = fdtn(childComment.created_at);
 
       const comment = childComment.toObject();
       const nestedChildComments = await getChildCommentsRecursive(
@@ -89,14 +87,11 @@ const getAllComments = async (req, res) => {
         }).countDocuments();
 
         comment.like.love = count;
-        comment.created_at = formatDistanceToNow(
-          new Date(Number(comment.created_at)),
-          { addSuffix: true, includeSeconds: true, locale: id }
-        );
+        comment.created_at = fdtn(comment.created_at);
       })
     );
 
-    res.status(200).json({ code: 200, data: comments });
+    res.status(200).json({ code: 200, total: comments.length, data: comments });
   } catch (error) {
     console.error(error);
     res.status(400).json({ error: error });
@@ -114,6 +109,33 @@ const getCommentById = (req, res) => {
       res.status(200).json({ code: 200, data: comment });
     })
     .catch((err) => res.status(400).json({ error: err }));
+};
+
+const updateComment = (req, res) => {
+  const { id } = req.params;
+  const { hadir, komentar } = req.body;
+
+  Comment.findOneAndUpdate(
+    { uuid: id },
+    {
+      hadir: hadir,
+      komentar: komentar,
+    }
+  )
+    .then(() => {
+      res.status(201).json({ code: 201, status: true });
+    })
+    .catch((err) => res.status(400).json({ error: err, status: false }));
+};
+
+const deleteComment = async (req, res) => {
+  const { id } = req.params;
+
+  Comment.findOneAndDelete({ uuid: id })
+    .then(() => {
+      res.status(200).json({ code: 200, status: true });
+    })
+    .catch((err) => res.status(400).json({ error: err, status: false }));
 };
 
 const addLikeToSpesificComment = (req, res) => {
@@ -145,6 +167,8 @@ export {
   addCommentToParent,
   getAllComments,
   getCommentById,
+  updateComment,
+  deleteComment,
   addLikeToSpesificComment,
   removeLikeFromSpecificComment,
 };
