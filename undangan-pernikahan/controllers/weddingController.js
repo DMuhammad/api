@@ -15,38 +15,92 @@ const addComment = (req, res) => {
   })
     .save()
     .then((comment) => {
-      comment.own = uuidv4();
-      res.status(201).json({ code: 201, data: comment });
+      const own = uuidv4();
+      res.status(201).json({ code: 201, data: comment, own: own });
     })
     .catch((err) => res.status(400).json({ error: err }));
+};
+
+const addCommentToParent = (req, res) => {
+  const { nama, komentar, id } = req.body;
+
+  new Comment({
+    uuid: uuidv4(),
+    nama: nama,
+    hadir: false,
+    komentar: komentar,
+    parent_id: id,
+  })
+    .save()
+    .then((comment) => {
+      const own = uuidv4();
+      res.status(201).json({ code: 201, data: comment, own: own });
+    })
+    .catch((err) => res.status(400).json({ error: err }));
+};
+
+const getChildCommentsRecursive = async (parent_id) => {
+  try {
+    const childComments = await Comment.find({ parent_id: parent_id });
+    const comments = [];
+
+    for (const childComment of childComments) {
+      const count = await Like.find({
+        comment_id: childComment.uuid,
+      }).countDocuments();
+      childComment.like.love = count;
+
+      childComment.created_at = formatDistanceToNow(
+        new Date(Number(childComment.created_at)),
+        { addSuffix: true, includeSeconds: true, locale: id }
+      );
+
+      const comment = childComment.toObject();
+      const nestedChildComments = await getChildCommentsRecursive(
+        childComment.uuid
+      );
+
+      comment.comments = nestedChildComments;
+      comments.push(comment);
+    }
+
+    return comments;
+  } catch (error) {
+    console.error(error);
+  }
 };
 
 const getAllComments = async (req, res) => {
   const { per, next } = req.query;
 
-  Comment.find({})
-    .sort({ created_at: -1 })
-    .skip(next)
-    .limit(per)
-    .then((comments) => {
-      const response = comments.map((comment) => {
-        return Like.find({ comment_id: comment.uuid })
-          .countDocuments()
-          .then((count) => {
-            comment.like.love = count;
-            comment.created_at = formatDistanceToNow(
-              new Date(Number(comment.created_at)),
-              { addSuffix: true, includeSeconds: true, locale: id }
-            );
-          })
-          .catch((err) => res.json({ error: err }));
-      });
+  try {
+    const comments = await Comment.find({ parent_id: null })
+      .sort({ created_at: -1 })
+      .skip(next)
+      .limit(per);
 
-      return Promise.all(response).then(() => {
-        res.status(200).json({ code: 200, data: comments });
-      });
-    })
-    .catch((err) => res.status(400).json({ error: err }));
+    await Promise.all(
+      comments.map(async (comment) => {
+        const childComments = await getChildCommentsRecursive(comment.uuid);
+        comment.comments = childComments;
+
+        const count = await Like.find({
+          comment_id: comment.uuid,
+        }).countDocuments();
+
+        comment.like.love = count;
+        comment.created_at = formatDistanceToNow(
+          new Date(Number(comment.created_at)),
+          { addSuffix: true, includeSeconds: true, locale: id }
+        );
+      })
+    );
+
+    res.status(200).json({ code: 200, data: comments });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ error: error });
+  }
 };
 
 const getCommentById = (req, res) => {
@@ -88,6 +142,7 @@ const removeLikeFromSpecificComment = (req, res) => {
 
 export {
   addComment,
+  addCommentToParent,
   getAllComments,
   getCommentById,
   addLikeToSpesificComment,

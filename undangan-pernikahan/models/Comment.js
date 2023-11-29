@@ -12,6 +12,11 @@ const commentSchema = new mongoose.Schema({
       default: 0,
     },
   },
+  parent_id: {
+    type: String,
+    default: null,
+  },
+  comments: [{ type: mongoose.Schema.Types.Mixed, ref: "Comment" }],
 });
 
 export default mongoose.model("Comment", commentSchema);
